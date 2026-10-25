@@ -1,4 +1,4 @@
-// Behaviour of robots-guard.mjs. Run: node --test robots-guard/*.test.mjs
+// Behaviour of robots-guard/. Run: node --test tests/robots-guard.test.mjs
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync } from 'node:fs';
@@ -9,9 +9,9 @@ import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import {
   parseRobots, evaluate, RobotsGuard, RobotsDisallowedError, wrapFetch, runHook,
-} from './robots-guard.mjs';
+} from '../robots-guard/robots-guard.mjs';
 
-const GUARD_FILE = fileURLToPath(new URL('./robots-guard.mjs', import.meta.url));
+const GUARD_FILE = fileURLToPath(new URL('../robots-guard/robots-guard.mjs', import.meta.url));
 const verdict = (robots, path, token = 'career-ops') => evaluate(parseRobots(robots), path, [token]);
 
 // A fetch double serving robots.txt per origin. `served` counts robots.txt requests.
