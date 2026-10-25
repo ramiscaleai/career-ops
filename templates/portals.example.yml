@@ -1846,6 +1846,11 @@ search_queries:
 #   max_pages: 10         # optional page cap (20 posts/page, default 10, max 10)
 #   enabled: true
 #
+# - name: Example RSS Board               # any public RSS 2.0 job feed (this fork only)
+#   provider: rss                         # no detect() — only reachable via provider:
+#   careers_url: https://jobs.example.com/feed.rss   # https, no credentials or port
+#   enabled: true
+#
 # - name: Himalayas
 #   provider: himalayas
 # - name: Landing.jobs                    # tech board, Europe-focused
