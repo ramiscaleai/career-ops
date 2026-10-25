@@ -14,7 +14,8 @@
 // Entry points:
 //   node --import ./robots-guard/preload.mjs scan.mjs   every fetch() in that process is checked
 //   node robots-guard/robots-guard.mjs check <url>        exit 0 allowed, 1 disallowed
-//   node robots-guard/robots-guard.mjs hook               Claude Code PreToolUse hook (JSON on stdin)
+//   node robots-guard/robots-guard.mjs hook               Claude Code PreToolUse hook (JSON on stdin):
+//                                                         checks tool_input.url and the URLs of curl/wget commands
 //
 // Environment:
 //   ROBOTS_GUARD_AGENT         product token matched against User-agent lines
@@ -290,17 +291,34 @@ export function install(options = {}) {
 
 // ── Claude Code PreToolUse hook ─────────────────────────────────────
 
+// Shell commands whose URLs are web requests; any other command's URLs are left alone.
+const FETCHING_COMMAND = /(^|[\s;&|(`])(curl|wget|http|https|xh|lynx|w3m|aria2c)(?=\s)/;
+const URL_IN_COMMAND = /https?:\/\/[^\s'"`<>|;)\\]+/gi;
+
+// The URLs a tool call would request: tool_input.url (WebFetch, browser tools) or,
+// for Bash, the URLs of a curl/wget-style command.
+function requestedUrls(toolInput) {
+  const urls = [];
+  if (typeof toolInput?.url === 'string') urls.push(toolInput.url);
+  const command = toolInput?.command;
+  if (typeof command === 'string' && FETCHING_COMMAND.test(command)) urls.push(...(command.match(URL_IN_COMMAND) ?? []));
+  return urls.filter((u) => /^https?:\/\//i.test(u));
+}
+
 export async function runHook(stdinText, guard) {
-  let url;
+  let urls;
   try {
-    url = JSON.parse(stdinText)?.tool_input?.url;
+    urls = requestedUrls(JSON.parse(stdinText)?.tool_input);
   } catch {
     return { exitCode: 0, stderr: '' };
   }
-  if (typeof url !== 'string' || !/^https?:\/\//i.test(url)) return { exitCode: 0, stderr: '' };
-  const v = await guard.check(url);
-  if (v.allowed) return { exitCode: 0, stderr: '' };
-  return { exitCode: 2, stderr: `robots.txt disallows ${url}: ${v.reason}. Skip this page and do not fetch it another way.\n` };
+  for (const url of urls) {
+    const v = await guard.check(url);
+    if (!v.allowed) {
+      return { exitCode: 2, stderr: `robots.txt disallows ${url}: ${v.reason}. Skip this page and do not fetch it another way.\n` };
+    }
+  }
+  return { exitCode: 0, stderr: '' };
 }
 
 // ── CLI ─────────────────────────────────────────────────────────────
@@ -311,7 +329,17 @@ async function readStdin() {
   return text;
 }
 
+const USAGE = `usage: node robots-guard/robots-guard.mjs <command>
+  check <url>   say whether robots.txt allows <url>: exit 0 allowed, 1 disallowed
+  hook          Claude Code PreToolUse hook: tool call JSON on stdin, exit 2 blocks the call
+  --help, -h    print this help
+`;
+
 async function main([command, url]) {
+  if (command === '--help' || command === '-h') {
+    process.stdout.write(USAGE);
+    return 0;
+  }
   const fetchImpl = globalThis.fetch.original ?? globalThis.fetch;
   if (command === 'check' && url) {
     const v = await new RobotsGuard({ fetchImpl, ...optionsFromEnv() }).check(url);
@@ -325,7 +353,7 @@ async function main([command, url]) {
     process.stderr.write(r.stderr);
     return r.exitCode;
   }
-  console.error('usage: node robots-guard.mjs check <url> | hook');
+  process.stderr.write(USAGE);
   return 64;
 }
 

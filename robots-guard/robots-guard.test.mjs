@@ -5,7 +5,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createServer } from 'node:http';
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import {
   parseRobots, evaluate, RobotsGuard, RobotsDisallowedError, wrapFetch, runHook,
@@ -216,6 +216,21 @@ describe('Claude Code PreToolUse hook', () => {
     assert.equal((await runHook(hookInput({ prompt: 'hi' }), guard)).exitCode, 0);
   });
 
+  it('blocks a curl or wget command that fetches a disallowed URL', async () => {
+    const { guard } = guardFor({ 'https://a.test': { body: 'User-agent: *\nDisallow: /private' } });
+    const bash = (command) => JSON.stringify({ tool_name: 'Bash', tool_input: { command } });
+    assert.equal((await runHook(bash('curl -sL "https://a.test/private/job" -o job.html'), guard)).exitCode, 2);
+    assert.equal((await runHook(bash('cd /tmp && wget https://a.test/private/1'), guard)).exitCode, 2);
+    assert.equal((await runHook(bash('curl -s https://a.test/jobs'), guard)).exitCode, 0);
+  });
+
+  it('leaves URLs alone in shell commands that do not fetch web pages', async () => {
+    const { guard, served } = guardFor({ 'https://a.test': { body: 'User-agent: *\nDisallow: /' } });
+    const bash = (command) => JSON.stringify({ tool_name: 'Bash', tool_input: { command } });
+    assert.equal((await runHook(bash('git clone https://a.test/private/repo.git'), guard)).exitCode, 0);
+    assert.deepEqual(served, {});
+  });
+
   it('works end to end as a command against a real HTTP server', async () => {
     const server = createServer((req, res) => {
       if (req.url === '/robots.txt') { res.end('User-agent: *\nDisallow: /private'); return; }
@@ -239,5 +254,22 @@ describe('Claude Code PreToolUse hook', () => {
     } finally {
       server.close();
     }
+  });
+});
+
+describe('command line', () => {
+  it('prints usage and exits 0 on --help and -h, without fetching anything', () => {
+    for (const flag of ['--help', '-h']) {
+      const r = spawnSync(process.execPath, [GUARD_FILE, flag], { encoding: 'utf8' });
+      assert.equal(r.status, 0, r.stderr);
+      assert.match(r.stdout, /check <url>/);
+      assert.match(r.stdout, /hook/);
+    }
+  });
+
+  it('exits 64 with usage on stderr for an unknown command', () => {
+    const r = spawnSync(process.execPath, [GUARD_FILE, 'crawl'], { encoding: 'utf8' });
+    assert.equal(r.status, 64);
+    assert.match(r.stderr, /usage/);
   });
 });
