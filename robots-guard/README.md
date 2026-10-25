@@ -14,7 +14,7 @@ Fork-only addition: makes every request career-ops sends obey the target site's
 |-----|---------|
 | Guard every `fetch()` of a script | `node --import ./robots-guard/preload.mjs scan.mjs` |
 | Check one URL | `node robots-guard/robots-guard.mjs check <url>` (exit 0 allowed, 1 disallowed) |
-| Guard Claude Code's WebFetch, browser tools and `curl`/`wget` commands | PreToolUse hook running `node robots-guard/robots-guard.mjs hook` |
+| Guard Claude Code's WebFetch, browser tools, and `curl`/`wget`/browser-CLI commands | PreToolUse hook running `node robots-guard/robots-guard.mjs hook` (wired in `.claude/settings.json`) |
 | Test | `node --test robots-guard/*.test.mjs` |
 
 A blocked request fails with `RobotsDisallowedError` (`code: 'ROBOTS_DISALLOWED'`)

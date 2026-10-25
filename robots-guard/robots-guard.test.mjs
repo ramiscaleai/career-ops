@@ -224,6 +224,14 @@ describe('Claude Code PreToolUse hook', () => {
     assert.equal((await runHook(bash('curl -s https://a.test/jobs'), guard)).exitCode, 0);
   });
 
+  it('blocks browser command-line tools that open a disallowed URL', async () => {
+    const { guard } = guardFor({ 'https://a.test': { body: 'User-agent: *\nDisallow: /private' } });
+    const bash = (command) => JSON.stringify({ tool_name: 'Bash', tool_input: { command } });
+    for (const cli of ['dev-browser goto', 'chrome-devtools navigate_page --url', 'npx playwright screenshot']) {
+      assert.equal((await runHook(bash(`${cli} https://a.test/private/1`), guard)).exitCode, 2, cli);
+    }
+  });
+
   it('leaves URLs alone in shell commands that do not fetch web pages', async () => {
     const { guard, served } = guardFor({ 'https://a.test': { body: 'User-agent: *\nDisallow: /' } });
     const bash = (command) => JSON.stringify({ tool_name: 'Bash', tool_input: { command } });

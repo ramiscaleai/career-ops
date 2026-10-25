@@ -10,7 +10,8 @@
 //   node --import ./robots-guard/preload.mjs scan.mjs   every fetch() in that process is checked
 //   node robots-guard/robots-guard.mjs check <url>        exit 0 allowed, 1 disallowed
 //   node robots-guard/robots-guard.mjs hook               Claude Code PreToolUse hook (JSON on stdin):
-//                                                         checks tool_input.url and the URLs of curl/wget commands
+//                                                         checks tool_input.url and the URLs of curl/wget
+//                                                         and browser command-line tools
 //
 // Environment:
 //   ROBOTS_GUARD_AGENT         product token matched against User-agent lines
@@ -181,7 +182,8 @@ export function install(options = {}) {
 // ── Claude Code PreToolUse hook ─────────────────────────────────────
 
 // Shell commands whose URLs are web requests; any other command's URLs are left alone.
-const FETCHING_COMMAND = /(^|[\s;&|(`])(curl|wget|http|https|xh|lynx|w3m|aria2c)(?=\s)/;
+const FETCHING_COMMAND =
+  /(^|[\s;&|(`])(curl|wget|http|https|xh|lynx|w3m|aria2c|dev-browser|chrome-devtools|playwright)(?=\s)/;
 const URL_IN_COMMAND = /https?:\/\/[^\s'"`<>|;)\\]+/gi;
 
 // The URLs a tool call would request: tool_input.url (WebFetch, browser tools) or,
