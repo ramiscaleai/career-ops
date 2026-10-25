@@ -30,7 +30,7 @@ import { createHash } from 'node:crypto';
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { isMainModule } from '../lib/is-main-module.mjs';
 import { DEFAULT_USER_AGENT } from '../user-agent.mjs';
 
 const DAY_MS = 24 * 3600 * 1000;
@@ -329,6 +329,6 @@ async function main([command, url]) {
   return 64;
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (isMainModule(import.meta.url)) {
   process.exit(await main(process.argv.slice(2)));
 }
