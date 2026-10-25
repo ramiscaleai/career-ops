@@ -232,30 +232,39 @@ describe('Claude Code PreToolUse hook', () => {
   });
 
   it('works end to end as a command against a real HTTP server', async () => {
-    const server = createServer((req, res) => {
-      if (req.url === '/robots.txt') { res.end('User-agent: *\nDisallow: /private'); return; }
-      res.statusCode = 404; res.end();
-    });
-    await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const server = await startServer('User-agent: *\nDisallow: /private');
     const base = `http://127.0.0.1:${server.address().port}`;
-    const run = (url) => new Promise((resolve) => {
-      const child = spawn(process.execPath, [GUARD_FILE, 'hook'], {
-        env: { ...process.env, ROBOTS_GUARD_EXEMPT_HOSTS: '', ROBOTS_GUARD_CACHE_DIR: '' },
-      });
-      let stderr = '';
-      child.stderr.on('data', (d) => { stderr += d; });
-      child.on('close', (exitCode) => resolve({ exitCode, stderr }));
-      child.stdin.end(hookInput({ url }));
-    });
     try {
-      const blocked = await run(`${base}/private/1`);
+      const blocked = await runHookProcess(hookInput({ url: `${base}/private/1` }));
       assert.equal(blocked.exitCode, 2, blocked.stderr);
-      assert.equal((await run(`${base}/jobs`)).exitCode, 0);
+      assert.equal((await runHookProcess(hookInput({ url: `${base}/jobs` }))).exitCode, 0);
     } finally {
       server.close();
     }
   });
 });
+
+// A local site that serves robotsTxt at /robots.txt and 404 everywhere else.
+async function startServer(robotsTxt) {
+  const server = createServer((req, res) => {
+    res.statusCode = req.url === '/robots.txt' ? 200 : 404;
+    res.end(req.url === '/robots.txt' ? robotsTxt : '');
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  return server;
+}
+
+// Runs `robots-guard.mjs hook` as Claude Code would, with no exempt hosts and no disk cache.
+function runHookProcess(stdinText) {
+  return new Promise((resolve) => {
+    const env = { ...process.env, ROBOTS_GUARD_EXEMPT_HOSTS: '', ROBOTS_GUARD_CACHE_DIR: '' };
+    const child = spawn(process.execPath, [GUARD_FILE, 'hook'], { env });
+    let stderr = '';
+    child.stderr.on('data', (d) => { stderr += d; });
+    child.on('close', (exitCode) => resolve({ exitCode, stderr }));
+    child.stdin.end(stdinText);
+  });
+}
 
 describe('command line', () => {
   it('prints usage and exits 0 on --help and -h, without fetching anything', () => {

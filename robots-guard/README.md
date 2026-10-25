@@ -1,7 +1,14 @@
 # robots-guard
 
 Fork-only addition: makes every request career-ops sends obey the target site's
-`robots.txt` (RFC 9309, cautious reading — see the header of `robots-guard.mjs`).
+`robots.txt` (RFC 9309, cautious reading).
+
+| File | Holds |
+|------|-------|
+| `robots-rules.mjs` | parsing and the allow/disallow decision |
+| `robots-fetch.mjs` | fetching robots.txt and the 24-hour disk cache |
+| `robots-guard.mjs` | the guard (status-code policy, Crawl-delay), `fetch()` wrapper, hook and CLI |
+| `preload.mjs` | `--import` entry that installs the guard |
 
 | Use | Command |
 |-----|---------|
