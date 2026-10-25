@@ -7,7 +7,8 @@
 //     stalling the run
 //
 // Entry points:
-//   node --import ./robots-guard/preload.mjs scan.mjs   every fetch() in that process is checked
+//   node --import ./robots-guard/preload.mjs scan.mjs   every request in that process is checked
+//                                                         (fetch here; undici and Playwright in robots-modules.mjs)
 //   node robots-guard/robots-guard.mjs check <url>        exit 0 allowed, 1 disallowed
 //   node robots-guard/robots-guard.mjs hook               Claude Code PreToolUse hook (JSON on stdin):
 //                                                         checks tool_input.url and the URLs of curl/wget
@@ -159,7 +160,7 @@ export function wrapFetch(originalFetch, guard, onBlock = () => {}) {
   };
 }
 
-function logOncePerSiteAndRule() {
+export function logOncePerSiteAndRule() {
   const logged = new Set();
   return (err) => {
     const key = `${new URL(err.url).origin} ${err.reason}`;
@@ -169,14 +170,16 @@ function logOncePerSiteAndRule() {
   };
 }
 
+// Wraps globalThis.fetch; returns { guard, onBlock } for guarding other HTTP stacks the same way.
 export function install(options = {}) {
-  if (globalThis.fetch?.robotsGuard) return globalThis.fetch.robotsGuard;
+  if (globalThis.fetch?.robotsGuard) return { guard: globalThis.fetch.robotsGuard, onBlock: globalThis.fetch.onBlock };
   const original = globalThis.fetch;
   const guard = new RobotsGuard({ fetchImpl: original, ...optionsFromEnv(), ...options });
-  const wrapped = wrapFetch(original, guard, logOncePerSiteAndRule());
-  Object.assign(wrapped, { robotsGuard: guard, original });
+  const onBlock = logOncePerSiteAndRule();
+  const wrapped = wrapFetch(original, guard, onBlock);
+  Object.assign(wrapped, { robotsGuard: guard, onBlock, original });
   globalThis.fetch = wrapped;
-  return guard;
+  return { guard, onBlock };
 }
 
 // ── Claude Code PreToolUse hook ─────────────────────────────────────
