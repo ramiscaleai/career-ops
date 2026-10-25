@@ -1,0 +1,2 @@
+# Files this fork owns that upstream does not ship.
+robots-guard/
